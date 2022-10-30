@@ -62,29 +62,66 @@ def get_arguments():
 def read_fasta(fasta_file):
     """Extract the complete genome sequence as a single string
     """
-    pass
+    with open(fasta_file, "rt") as fileas:
+        sequence = ""
+        for line in fileas:
+            if line.startswith(">"):
+                continue
+            sequence += line.strip()
+
+    return sequence.upper()
 
 def find_start(start_regex, sequence, start, stop):
     """Find the start codon
     """
-    pass
+    result = start_regex.search(sequence, start, stop)
+    return result.start(0) if result != None else None
 
 
 def find_stop(stop_regex, sequence, start):
     """Find the stop codon
     """
-    pass
+    condons = stop_regex.finditer(sequence, start)
+    for codon in condons:
+        if (codon.start(0) - start) % 3 == 0:
+            return codon.start(0)
+    return None
 
 def has_shine_dalgarno(shine_regex, sequence, start, max_shine_dalgarno_distance):
     """Find a shine dalgarno motif before the start codon
     """
-    pass
+    condons = shine_regex.search(sequence)
+    starting_pos = start - 6
+    ending_pos = start - max_shine_dalgarno_distance
+    return condons != None and starting_pos >= (condons.start(0) + 1) and \
+        (condons.start(0) + 1) >= ending_pos and starting_pos >= (condons.end(0) + 1) and \
+        (condons.start(0) + 1) >= ending_pos
 
 def predict_genes(sequence, start_regex, stop_regex, shine_regex, 
                   min_gene_len, max_shine_dalgarno_distance, min_gap):
     """Predict most probable genes
     """
-    pass
+    current_pos = 0
+    genes_predict = []
+    while len(sequence) - current_pos >= min_gap:
+        current_pos = find_start(start_regex, sequence, current_pos, len(sequence))
+        if current_pos != None:
+            stop = find_stop(stop_regex, sequence, current_pos)
+            if stop != None:
+                length_min = (stop - current_pos) >= min_gene_len
+                if length_min:
+                    if has_shine_dalgarno(shine_regex, sequence, current_pos, max_shine_dalgarno_distance):
+                        genes_predict.append([current_pos + 1, stop + 3])
+                        current_pos = current_pos + stop + min_gap
+                    else:
+                        current_pos += 1
+                else:
+                    current_pos += 1
+            else:
+                current_pos += 1
+        else:
+            current_pos += 1
+    return genes_predict
 
 
 def write_genes_pos(predicted_genes_file, probable_genes):
